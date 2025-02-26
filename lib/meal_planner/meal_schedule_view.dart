@@ -13,6 +13,13 @@ import 'widgets/preferences_dialog.dart';
 import 'meal_type_view.dart';
 import 'dart:convert';
 
+extension StringExtension on String {
+  String capitalize() {
+    if (isEmpty) return this;
+    return "${this[0].toUpperCase()}${substring(1).toLowerCase()}";
+  }
+}
+
 class MealScheduleView extends StatefulWidget {
   final MealPlan? mealPlan;
   const MealScheduleView({super.key, this.mealPlan});
@@ -25,26 +32,27 @@ class _MealScheduleViewState extends State<MealScheduleView> {
   CalendarAgendaController _calendarAgendaControllerAppBar =
       CalendarAgendaController();
 
-  late DateTime _selectedDateAppBBar;
+  DateTime _selectedDateAppBBar = DateTime.now();
 
   final MealService _mealService = MealService();
   MealPlan? _currentMealPlan;
-  bool _isLoading = false;
-  double _calories = 0;
-  double _protein = 0;
-  double _fat = 0;
-  double _carbs = 0;
+  bool _isLoading = true;
+
+  // Nutrition values
+  late double _calories;
+  late double _protein;
+  late double _fat;
+  late double _carbs;
 
   @override
   void initState() {
     super.initState();
-    _selectedDateAppBBar = DateTime.now();
-    _currentMealPlan = widget.mealPlan;
-    if (_currentMealPlan == null) {
-      _loadMealPlan(_selectedDateAppBBar);
-    } else {
-      _updateNutritionValues();
-    }
+    // Initialize nutrition values
+    _calories = 0;
+    _protein = 0;
+    _fat = 0;
+    _carbs = 0;
+    _loadInitialMealPlan();
   }
 
   void _updateNutritionValues() {
@@ -55,6 +63,73 @@ class _MealScheduleViewState extends State<MealScheduleView> {
         _fat = _currentMealPlan!.nutrients.fat;
         _carbs = _currentMealPlan!.nutrients.carbohydrates;
       });
+    }
+  }
+
+  Future<void> _loadInitialMealPlan() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      // Load or create meal plan
+      await _loadMealPlan(_selectedDateAppBBar);
+
+      // If no meals exist, generate random meals for each type
+      if (_currentMealPlan == null || _currentMealPlan!.meals.isEmpty) {
+        await _generateRandomMeals();
+      }
+
+      _updateNutritionValues();
+    } catch (e) {
+      print('Error loading initial meal plan: $e');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _generateRandomMeals() async {
+    try {
+      final userPrefs = await UserPreferences.load();
+      final mealTypes = ['breakfast', 'lunch', 'dinner'];
+      final meals = <Meal>[];
+
+      for (var type in mealTypes) {
+        try {
+          final mealPlan = await _mealService.getMealsByType(type, userPrefs);
+          if (mealPlan.meals.isNotEmpty) {
+            final randomMeal = mealPlan.meals[0]; // Get the first meal as it's already random
+            meals.add(randomMeal.copyWith(type: type));
+          }
+        } catch (e) {
+          print('Error generating random meal for $type: $e');
+        }
+      }
+
+      if (meals.isNotEmpty) {
+        final mealPlan = MealPlan(
+          meals: meals,
+          nutrients: Nutrients(
+            calories: userPrefs.targetCalories.toDouble(),
+            protein: userPrefs.targetCalories * 0.2,
+            fat: userPrefs.targetCalories * 0.3,
+            carbohydrates: userPrefs.targetCalories * 0.5,
+          ),
+        );
+
+        await _mealService.saveMealPlan(mealPlan, _selectedDateAppBBar);
+        if (mounted) {
+          setState(() {
+            _currentMealPlan = mealPlan;
+          });
+        }
+      }
+    } catch (e) {
+      print('Error generating random meals: $e');
     }
   }
 
@@ -90,57 +165,178 @@ class _MealScheduleViewState extends State<MealScheduleView> {
     }
   }
 
-  Future<void> _updateAndSaveMealPlan(Meal selectedMeal, String mealType) async {
-    if (_currentMealPlan != null) {
-      final meals = [..._currentMealPlan!.meals];
-      
-      // Remove any existing meal of the same type
-      meals.removeWhere((m) => m.type?.toLowerCase() == mealType.toLowerCase());
-      
-      // Add the new meal with the correct type
-      final mealWithType = selectedMeal.copyWith(type: mealType.toLowerCase());
-      meals.add(mealWithType);
-
-      final updatedMealPlan = MealPlan(
-        meals: meals,
-        nutrients: _currentMealPlan!.nutrients,
+  void _showMealTypeView(String mealType) async {
+    try {
+      // Show loading indicator
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const Center(child: CircularProgressIndicator()),
       );
 
-      try {
-        await _mealService.saveMealPlan(updatedMealPlan, _selectedDateAppBBar);
-        if (mounted) {
-          setState(() {
-            _currentMealPlan = updatedMealPlan;
-            _updateNutritionValues();
-          });
-        }
-      } catch (e) {
-        print('Error saving updated meal plan: $e');
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Failed to save meal plan: $e'),
-              backgroundColor: Colors.red,
+      // Get meal recommendations
+      final recommendations = await _getMealRecommendations(mealType);
+
+      // Hide loading indicator
+      Navigator.pop(context);
+
+      if (!mounted) return;
+
+      // Show recommendations dialog
+      await showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Text('Select ${mealType.capitalize()}'),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: recommendations.isEmpty
+                ? const Center(
+                    child: Text('No meals found. Try adjusting your preferences.'),
+                  )
+                : ListView.builder(
+                    shrinkWrap: true,
+                    itemCount: recommendations.length,
+                    itemBuilder: (context, index) {
+                      final meal = recommendations[index];
+                      return ListTile(
+                        title: Text(meal.title),
+                        subtitle: Text(
+                          'Ready in ${meal.readyInMinutes} mins • ${meal.diets.join(", ")}',
+                        ),
+                        onTap: () {
+                          Navigator.pop(context);
+                          _selectMeal(meal, mealType);
+                        },
+                      );
+                    },
+                  ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
             ),
-          );
-        }
+          ],
+        ),
+      );
+    } catch (e) {
+      print('Error showing meal type view: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error loading meals: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
       }
     }
   }
 
-  void _showMealTypeView(String mealType) async {
-    await Navigator.push(
+  Future<List<Meal>> _getMealRecommendations(String mealType) async {
+    try {
+      final userPrefs = await UserPreferences.load();
+      final mealPlan = await _mealService.getMealsByType(mealType, userPrefs);
+      return mealPlan.meals;
+    } catch (e) {
+      print('Error getting meal recommendations: $e');
+      return [];
+    }
+  }
+
+  void _showFullMealTypeView(String mealType) {
+    Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => MealTypeView(
           mealType: mealType,
           onMealSelected: (meal) async {
-            await _updateAndSaveMealPlan(meal, mealType);
-            Navigator.pop(context, true);
+            Navigator.pop(context);
+            await _selectMeal(meal, mealType);
           },
         ),
       ),
     );
+  }
+
+  Future<void> _selectMeal(Meal meal, String mealType) async {
+    try {
+      await _updateAndSaveMealPlan(meal, mealType);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Added ${meal.title} to your $mealType'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to save meal selection'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _updateAndSaveMealPlan(Meal selectedMeal, String mealType) async {
+    if (_currentMealPlan == null) {
+      // If no meal plan exists, create a new one with default nutrients
+      _currentMealPlan = MealPlan(
+        meals: [],
+        nutrients: Nutrients(
+          calories: 2000,
+          protein: 400,
+          fat: 600,
+          carbohydrates: 1000,
+        ),
+      );
+    }
+
+    // Create a new list with existing meals
+    final meals = List<Meal>.from(_currentMealPlan!.meals);
+
+    // Prepare the new meal with correct type
+    final mealWithType = selectedMeal.copyWith(type: mealType.toLowerCase());
+
+    // Find and replace or add the meal
+    final existingIndex = meals.indexWhere(
+      (m) => m.type?.toLowerCase() == mealType.toLowerCase(),
+    );
+
+    if (existingIndex != -1) {
+      meals[existingIndex] = mealWithType;
+    } else {
+      meals.add(mealWithType);
+    }
+
+    // Create updated meal plan
+    final updatedMealPlan = _currentMealPlan!.copyWith(meals: meals);
+
+    try {
+      // Save to storage
+      await _mealService.saveMealPlan(updatedMealPlan, _selectedDateAppBBar);
+
+      // Update state without refreshing
+      if (mounted) {
+        setState(() {
+          _currentMealPlan = updatedMealPlan;
+        });
+      }
+    } catch (e) {
+      print('Error saving meal plan: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to save meal plan: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   Widget _buildNutrientInfo(String label, String value, String unit) {
@@ -358,20 +554,20 @@ class _MealScheduleViewState extends State<MealScheduleView> {
               decoration: BoxDecoration(
                   color: TColor.lightGray,
                   borderRadius: BorderRadius.circular(10)),
-              child: _isLoading 
-                ? SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      valueColor: AlwaysStoppedAnimation<Color>(TColor.primaryColor2),
+              child: _isLoading
+                  ? SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(TColor.primaryColor2),
+                      ),
+                    )
+                  : Icon(
+                      Icons.refresh_rounded,
+                      size: 20,
+                      color: TColor.primaryColor2,
                     ),
-                  )
-                : Icon(
-                    Icons.refresh_rounded,
-                    size: 20,
-                    color: TColor.primaryColor2,
-                  ),
             ),
           )
         ],
@@ -431,7 +627,7 @@ class _MealScheduleViewState extends State<MealScheduleView> {
                   _selectedDateAppBBar = date;
                   _isLoading = true;
                 });
-                
+
                 try {
                   // Force refresh when selecting a new date to ensure we get different meals
                   await _loadMealPlan(date, forceRefresh: true);
@@ -469,13 +665,7 @@ class _MealScheduleViewState extends State<MealScheduleView> {
           ),
           Expanded(
             child: _isLoading
-                ? Center(
-                    child: CircularProgressIndicator(
-                      valueColor: AlwaysStoppedAnimation<Color>(
-                        TColor.primaryColor2,
-                      ),
-                    ),
-                  )
+                ? Center(child: CircularProgressIndicator())
                 : SingleChildScrollView(
                     padding: const EdgeInsets.all(16),
                     child: Column(
@@ -543,22 +733,22 @@ class _MealScheduleViewState extends State<MealScheduleView> {
                                     _buildNutrientInfo(
                                       "Calories",
                                       _currentMealPlan!.nutrients.calories.toStringAsFixed(0),
-                                      "kCal"
+                                      "kCal",
                                     ),
                                     _buildNutrientInfo(
                                       "Protein",
                                       _currentMealPlan!.nutrients.protein.toStringAsFixed(1),
-                                      "g"
+                                      "g",
                                     ),
                                     _buildNutrientInfo(
                                       "Fat",
                                       _currentMealPlan!.nutrients.fat.toStringAsFixed(1),
-                                      "g"
+                                      "g",
                                     ),
                                     _buildNutrientInfo(
                                       "Carbs",
                                       _currentMealPlan!.nutrients.carbohydrates.toStringAsFixed(1),
-                                      "g"
+                                      "g",
                                     ),
                                   ],
                                 ),
@@ -591,20 +781,8 @@ class _MealScheduleViewState extends State<MealScheduleView> {
                             Expanded(
                               child: _buildMealTypeCard(
                                 "Breakfast",
-                                () async {
-                                  await Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (context) => MealTypeView(
-                                        mealType: "Breakfast",
-                                        onMealSelected: (meal) async {
-                                          await _updateAndSaveMealPlan(meal, "breakfast");
-                                          Navigator.pop(context);
-                                          _loadMealPlan(_selectedDateAppBBar);
-                                        },
-                                      ),
-                                    ),
-                                  );
+                                () {
+                                  _showMealTypeView("Breakfast");
                                 },
                               ),
                             ),
@@ -612,20 +790,8 @@ class _MealScheduleViewState extends State<MealScheduleView> {
                             Expanded(
                               child: _buildMealTypeCard(
                                 "Lunch",
-                                () async {
-                                  await Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (context) => MealTypeView(
-                                        mealType: "Lunch",
-                                        onMealSelected: (meal) async {
-                                          await _updateAndSaveMealPlan(meal, "lunch");
-                                          Navigator.pop(context);
-                                          _loadMealPlan(_selectedDateAppBBar);
-                                        },
-                                      ),
-                                    ),
-                                  );
+                                () {
+                                  _showMealTypeView("Lunch");
                                 },
                               ),
                             ),
@@ -633,56 +799,63 @@ class _MealScheduleViewState extends State<MealScheduleView> {
                             Expanded(
                               child: _buildMealTypeCard(
                                 "Dinner",
-                                () async {
-                                  await Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (context) => MealTypeView(
-                                        mealType: "Dinner",
-                                        onMealSelected: (meal) async {
-                                          await _updateAndSaveMealPlan(meal, "dinner");
-                                          Navigator.pop(context);
-                                          _loadMealPlan(_selectedDateAppBBar);
-                                        },
-                                      ),
-                                    ),
-                                  );
+                                () {
+                                  _showMealTypeView("Dinner");
                                 },
                               ),
                             ),
                           ],
                         ),
                         const SizedBox(height: 20),
-                        if (_currentMealPlan != null && _currentMealPlan!.meals.isNotEmpty)
-                          Column(
-                            children: [
-                              Row(
-                                children: [
-                                  Text(
-                                    "Breakfast",
-                                    style: TextStyle(
-                                      color: TColor.black,
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: Container(
-                                      height: 1,
-                                      color: TColor.gray.withOpacity(0.3),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 8),
-                              MealFoodScheduleRow(
-                                meal: _currentMealPlan!.meals[0],
-                              ),
-                              if (_currentMealPlan!.meals.length > 1) 
+                        Builder(
+                          builder: (context) {
+                            if (_isLoading) {
+                              return const Center(child: CircularProgressIndicator());
+                            }
+
+                            if (_currentMealPlan == null) {
+                              return const Center(child: Text('No meal plan available'));
+                            }
+
+                            return Column(
+                              children: [
+                                // Breakfast Section
                                 Column(
                                   children: [
-                                    const SizedBox(height: 15),
+                                    Row(
+                                      children: [
+                                        Text(
+                                          "Breakfast",
+                                          style: TextStyle(
+                                            color: TColor.black,
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Expanded(
+                                          child: Container(
+                                            height: 1,
+                                            color: TColor.gray.withOpacity(0.3),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 8),
+                                    _currentMealPlan!.meals.any((m) => m.type?.toLowerCase() == 'breakfast')
+                                        ? MealFoodScheduleRow(
+                                            meal: _currentMealPlan!.meals.firstWhere(
+                                              (m) => m.type?.toLowerCase() == 'breakfast',
+                                            ),
+                                          )
+                                        : const Text('No breakfast selected'),
+                                  ],
+                                ),
+                                
+                                // Lunch Section
+                                const SizedBox(height: 15),
+                                Column(
+                                  children: [
                                     Row(
                                       children: [
                                         Text(
@@ -703,15 +876,20 @@ class _MealScheduleViewState extends State<MealScheduleView> {
                                       ],
                                     ),
                                     const SizedBox(height: 8),
-                                    MealFoodScheduleRow(
-                                      meal: _currentMealPlan!.meals[1],
-                                    ),
+                                    _currentMealPlan!.meals.any((m) => m.type?.toLowerCase() == 'lunch')
+                                        ? MealFoodScheduleRow(
+                                            meal: _currentMealPlan!.meals.firstWhere(
+                                              (m) => m.type?.toLowerCase() == 'lunch',
+                                            ),
+                                          )
+                                        : const Text('No lunch selected'),
                                   ],
                                 ),
-                              if (_currentMealPlan!.meals.length > 2) 
+                                
+                                // Dinner Section
+                                const SizedBox(height: 15),
                                 Column(
                                   children: [
-                                    const SizedBox(height: 15),
                                     Row(
                                       children: [
                                         Text(
@@ -732,17 +910,19 @@ class _MealScheduleViewState extends State<MealScheduleView> {
                                       ],
                                     ),
                                     const SizedBox(height: 8),
-                                    MealFoodScheduleRow(
-                                      meal: _currentMealPlan!.meals[2],
-                                    ),
+                                    _currentMealPlan!.meals.any((m) => m.type?.toLowerCase() == 'dinner')
+                                        ? MealFoodScheduleRow(
+                                            meal: _currentMealPlan!.meals.firstWhere(
+                                              (m) => m.type?.toLowerCase() == 'dinner',
+                                            ),
+                                          )
+                                        : const Text('No dinner selected'),
                                   ],
                                 ),
-                            ],
-                          )
-                        else
-                          const Center(
-                            child: Text('No meals planned for today'),
-                          ),
+                              ],
+                            );
+                          },
+                        ),
                       ],
                     ),
                   ),

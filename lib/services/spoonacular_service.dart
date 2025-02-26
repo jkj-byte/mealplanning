@@ -4,7 +4,20 @@ import 'package:flutter/foundation.dart';
 
 class SpoonacularService {
   static const String _baseUrl = 'api.spoonacular.com';
-  static const String _apiKey = 'b9e6952fb6464e07a572b80e4f723767'; // Replace with your actual API key
+  static const List<String> _apiKeys = [
+    'e2df5d824fd048b38b1440ee39057ea7',
+    '91585a75013e466da051216f0928c672',
+    'b9e6952fb6464e07a572b80e4f723767',
+    '6622e40befa646619520d16357e44df8'
+  ];
+  static int _currentKeyIndex = 0;
+
+  String get _apiKey => _apiKeys[_currentKeyIndex];
+
+  void _rotateApiKey() {
+    _currentKeyIndex = (_currentKeyIndex + 1) % _apiKeys.length;
+    debugPrint('Switching to API key: ${_apiKey}');
+  }
 
   String _getImageUrl(int id, String? imageType) {
     final type = imageType ?? 'jpg';
@@ -16,55 +29,136 @@ class SpoonacularService {
     int? targetCalories,
     String? diet,
     List<String>? exclude,
+    String? mealType,
+    String? cuisine,
+    int offset = 0,
+  }) async {
+    for (int attempt = 0; attempt < _apiKeys.length; attempt++) {
+      try {
+        final queryParams = {
+          'apiKey': _apiKey,
+          'number': '15',
+          'offset': offset.toString(),
+          'addRecipeInformation': 'true',
+          'sort': 'random',
+          if (targetCalories != null) 'maxCalories': targetCalories.toString(),
+          if (diet != null) ..._getDietParams(diet),
+          if (exclude != null && exclude.isNotEmpty) 'excludeIngredients': exclude.join(','),
+          if (mealType != null) 'type': mealType.toLowerCase(),
+          if (cuisine != null) 'cuisine': cuisine.toLowerCase(),
+        };
+
+        final uri = Uri.https(_baseUrl, '/recipes/complexSearch', queryParams);
+        debugPrint('🌐 Making request to: $uri');
+
+        final response = await http.get(
+          uri,
+          headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+          },
+        );
+
+        if (response.statusCode == 402) {
+          debugPrint('API quota exceeded for key: $_apiKey');
+          _rotateApiKey();
+          continue;
+        }
+
+        if (response.statusCode != 200) {
+          final errorBody = json.decode(response.body);
+          debugPrint('Error response: ${response.statusCode} - ${response.body}');
+          throw Exception('Failed to fetch meals: ${errorBody['message'] ?? 'Unknown error'}');
+        }
+
+        final data = json.decode(response.body);
+        if (data['results'] == null || (data['results'] as List).isEmpty) {
+          if (mealType != null) {
+            return getDailyMealPlan(
+              targetCalories: targetCalories,
+              diet: diet,
+              exclude: exclude,
+              mealType: null,
+              cuisine: cuisine,
+              offset: offset,
+            );
+          }
+          throw Exception('No meals found for the given criteria');
+        }
+
+        // Filter results to ensure they match dietary restrictions
+        final results = (data['results'] as List).where((meal) {
+          if (diet == 'vegetarian') {
+            return meal['vegetarian'] == true;
+          } else if (diet == 'vegan') {
+            return meal['vegan'] == true;
+          } else if (diet == 'gluten free') {
+            return meal['glutenFree'] == true;
+          }
+          return true;
+        }).toList();
+
+        return {'meals': results};
+      } catch (e) {
+        debugPrint('Error in getDailyMealPlan: $e');
+        if (attempt == _apiKeys.length - 1) {
+          throw Exception('Failed to fetch meals: $e');
+        }
+        _rotateApiKey();
+      }
+    }
+    throw Exception('All API keys exhausted');
+  }
+
+  Map<String, String> _getDietParams(String diet) {
+    switch (diet.toLowerCase()) {
+      case 'vegetarian':
+        return {
+          'diet': 'vegetarian',
+          'vegetarian': 'true',
+        };
+      case 'vegan':
+        return {
+          'diet': 'vegan',
+          'vegan': 'true',
+        };
+      case 'gluten free':
+        return {
+          'diet': 'gluten free',
+          'glutenFree': 'true',
+        };
+      default:
+        return {'diet': diet};
+    }
+  }
+
+  // Get meals for each type (breakfast, lunch, dinner)
+  Future<Map<String, dynamic>> getAllMealTypes({
+    int? targetCalories,
+    String? diet,
+    List<String>? exclude,
+    String? cuisine,
   }) async {
     try {
-      final queryParams = {
-        'apiKey': _apiKey,
-        'timeFrame': 'day',
-        if (targetCalories != null) 'targetCalories': targetCalories.toString(),
-        if (diet != null) 'diet': diet,
-        if (exclude != null && exclude.isNotEmpty) 'exclude': exclude.join(','),
+      final mealTypes = ['breakfast', 'lunch', 'dinner'];
+      final results = await Future.wait(
+        mealTypes.map((type) => getDailyMealPlan(
+          targetCalories: targetCalories,
+          diet: diet,
+          exclude: exclude,
+          mealType: type,
+          cuisine: cuisine,
+        )),
+      );
+
+      return {
+        'breakfast': results[0]['meals'],
+        'lunch': results[1]['meals'],
+        'dinner': results[2]['meals'],
       };
-
-      final uri = Uri.https(_baseUrl, '/mealplanner/generate', queryParams);
-      
-      debugPrint('🌐 Making request to: $uri');
-
-      final response = await http.get(
-        uri,
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json',
-        },
-      );
-
-      if (response.statusCode == 402) {
-        debugPrint('Using mock data due to API limit...');
-        return _getMockMealPlan(
-          targetCalories: targetCalories,
-          diet: diet,
-          exclude: exclude,
-        );
-      }
-
-      if (response.statusCode != 200) {
-        debugPrint('Error response: ${response.statusCode} - ${response.body}');
-        return _getMockMealPlan(
-          targetCalories: targetCalories,
-          diet: diet,
-          exclude: exclude,
-        );
-      }
-
-      final data = json.decode(response.body);
-      return data;
     } catch (e) {
-      debugPrint('Error in getDailyMealPlan: $e');
-      return _getMockMealPlan(
-        targetCalories: targetCalories,
-        diet: diet,
-        exclude: exclude,
-      );
+      debugPrint('Error in getAllMealTypes: $e');
+      throw Exception('Failed to fetch all meal types: $e');
     }
   }
 
@@ -201,5 +295,12 @@ class SpoonacularService {
       debugPrint('Stack trace: $stackTrace');
       rethrow;
     }
+  }
+}
+
+extension StringExtension on String {
+  String capitalize() {
+    if (isEmpty) return this;
+    return "${this[0].toUpperCase()}${substring(1).toLowerCase()}";
   }
 }

@@ -25,4 +25,14 @@ class MealPlan {
       nutrients: Nutrients.fromJson(json['nutrients']),
     );
   }
+
+  MealPlan copyWith({
+    List<Meal>? meals,
+    Nutrients? nutrients,
+  }) {
+    return MealPlan(
+      meals: meals ?? this.meals,
+      nutrients: nutrients ?? this.nutrients,
+    );
+  }
 }

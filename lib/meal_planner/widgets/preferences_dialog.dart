@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../../common/colo_extension.dart';
 import '../models/user_preferences.dart';
 
 class PreferencesDialog extends StatefulWidget {
@@ -19,14 +18,31 @@ class PreferencesDialog extends StatefulWidget {
 class _PreferencesDialogState extends State<PreferencesDialog> {
   late UserPreferences _preferences;
   final _caloriesController = TextEditingController();
+  final _prepTimeController = TextEditingController();
   final _allergyController = TextEditingController();
   final _excludeController = TextEditingController();
+
+  final List<String> _availableCuisines = [
+    'Indian',
+    'Italian',
+    'Chinese',
+    'Japanese',
+    'Mexican',
+    'Thai',
+    'Mediterranean',
+    'French',
+    'Korean',
+    'Middle Eastern',
+    'Vietnamese',
+    'Greek',
+  ];
 
   @override
   void initState() {
     super.initState();
-    _preferences = widget.preferences.copy();
+    _preferences = widget.preferences.copyWith();
     _caloriesController.text = _preferences.targetCalories.toString();
+    _prepTimeController.text = _preferences.maxPrepTime.toString();
   }
 
   @override
@@ -34,60 +50,58 @@ class _PreferencesDialogState extends State<PreferencesDialog> {
     _caloriesController.dispose();
     _allergyController.dispose();
     _excludeController.dispose();
+    _prepTimeController.dispose();
     super.dispose();
   }
 
   void _addAllergy(String allergy) {
     if (!_preferences.allergies.contains(allergy)) {
       setState(() {
-        _preferences.allergies.add(allergy);
+        _preferences = _preferences.copyWith(
+          allergies: [..._preferences.allergies, allergy],
+        );
       });
     }
   }
 
   void _removeAllergy(String allergy) {
     setState(() {
-      _preferences.allergies.remove(allergy);
+      _preferences = _preferences.copyWith(
+        allergies: _preferences.allergies.where((a) => a != allergy).toList(),
+      );
     });
   }
 
   void _addExclusion(String item) {
     if (!_preferences.excludedIngredients.contains(item)) {
       setState(() {
-        _preferences.excludedIngredients.add(item);
+        _preferences = _preferences.copyWith(
+          excludedIngredients: [..._preferences.excludedIngredients, item],
+        );
       });
     }
   }
 
   void _removeExclusion(String item) {
     setState(() {
-      _preferences.excludedIngredients.remove(item);
+      _preferences = _preferences.copyWith(
+        excludedIngredients: _preferences.excludedIngredients.where((i) => i != item).toList(),
+      );
     });
   }
 
-  Widget _buildChips(List<String> items, List<String> selectedItems, Function(String) onAdd, Function(String) onRemove) {
-    return Wrap(
-      spacing: 8,
-      children: items.map((item) {
-        final isSelected = selectedItems.contains(item);
-        return FilterChip(
-          label: Text(item),
-          selected: isSelected,
-          onSelected: (bool selected) {
-            if (selected) {
-              onAdd(item);
-            } else {
-              onRemove(item);
-            }
-          },
-          backgroundColor: isSelected ? Colors.blue : Colors.grey[200],
-          selectedColor: Colors.blue,
-          labelStyle: TextStyle(
-            color: isSelected ? Colors.white : Colors.black87,
-          ),
+  void _toggleCuisine(String cuisine) {
+    setState(() {
+      if (_preferences.culturalPreferences.contains(cuisine)) {
+        _preferences = _preferences.copyWith(
+          culturalPreferences: _preferences.culturalPreferences.where((c) => c != cuisine).toList(),
         );
-      }).toList(),
-    );
+      } else {
+        _preferences = _preferences.copyWith(
+          culturalPreferences: [..._preferences.culturalPreferences, cuisine],
+        );
+      }
+    });
   }
 
   @override
@@ -111,20 +125,54 @@ class _PreferencesDialogState extends State<PreferencesDialog> {
               ),
             ),
             const SizedBox(height: 20),
-            TextField(
-              controller: _caloriesController,
-              keyboardType: TextInputType.number,
-              decoration: InputDecoration(
-                labelText: 'Target Daily Calories',
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
+            
+            // Calories and Prep Time
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _caloriesController,
+                    keyboardType: TextInputType.number,
+                    decoration: InputDecoration(
+                      labelText: 'Target Daily Calories',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                    onChanged: (value) {
+                      setState(() {
+                        _preferences = _preferences.copyWith(
+                          targetCalories: int.tryParse(value) ?? 2000,
+                        );
+                      });
+                    },
+                  ),
                 ),
-              ),
-              onChanged: (value) {
-                _preferences.targetCalories = int.tryParse(value) ?? 2000;
-              },
+                const SizedBox(width: 16),
+                Expanded(
+                  child: TextField(
+                    controller: _prepTimeController,
+                    keyboardType: TextInputType.number,
+                    decoration: InputDecoration(
+                      labelText: 'Max Prep Time (min)',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                    onChanged: (value) {
+                      setState(() {
+                        _preferences = _preferences.copyWith(
+                          maxPrepTime: int.tryParse(value) ?? 60,
+                        );
+                      });
+                    },
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 20),
+
+            // Diet Types
             Text(
               'Diet Type',
               style: TextStyle(
@@ -142,8 +190,10 @@ class _PreferencesDialogState extends State<PreferencesDialog> {
                   selected: _preferences.vegetarian,
                   onSelected: (bool selected) {
                     setState(() {
-                      _preferences.vegetarian = selected;
-                      if (selected) _preferences.vegan = false;
+                      _preferences = _preferences.copyWith(
+                        vegetarian: selected,
+                        vegan: selected ? false : _preferences.vegan,
+                      );
                     });
                   },
                   backgroundColor: _preferences.vegetarian ? Colors.blue : Colors.grey[200],
@@ -157,8 +207,10 @@ class _PreferencesDialogState extends State<PreferencesDialog> {
                   selected: _preferences.vegan,
                   onSelected: (bool selected) {
                     setState(() {
-                      _preferences.vegan = selected;
-                      if (selected) _preferences.vegetarian = false;
+                      _preferences = _preferences.copyWith(
+                        vegan: selected,
+                        vegetarian: selected ? false : _preferences.vegetarian,
+                      );
                     });
                   },
                   backgroundColor: _preferences.vegan ? Colors.blue : Colors.grey[200],
@@ -167,45 +219,36 @@ class _PreferencesDialogState extends State<PreferencesDialog> {
                     color: _preferences.vegan ? Colors.white : Colors.black87,
                   ),
                 ),
-                FilterChip(
-                  label: const Text('Gluten Free'),
-                  selected: _preferences.glutenFree,
-                  onSelected: (bool selected) {
-                    setState(() => _preferences.glutenFree = selected);
-                  },
-                  backgroundColor: _preferences.glutenFree ? Colors.blue : Colors.grey[200],
-                  selectedColor: Colors.blue,
-                  labelStyle: TextStyle(
-                    color: _preferences.glutenFree ? Colors.white : Colors.black87,
-                  ),
-                ),
-                FilterChip(
-                  label: const Text('Keto'),
-                  selected: _preferences.keto,
-                  onSelected: (bool selected) {
-                    setState(() => _preferences.keto = selected);
-                  },
-                  backgroundColor: _preferences.keto ? Colors.blue : Colors.grey[200],
-                  selectedColor: Colors.blue,
-                  labelStyle: TextStyle(
-                    color: _preferences.keto ? Colors.white : Colors.black87,
-                  ),
-                ),
-                FilterChip(
-                  label: const Text('Paleo'),
-                  selected: _preferences.paleo,
-                  onSelected: (bool selected) {
-                    setState(() => _preferences.paleo = selected);
-                  },
-                  backgroundColor: _preferences.paleo ? Colors.blue : Colors.grey[200],
-                  selectedColor: Colors.blue,
-                  labelStyle: TextStyle(
-                    color: _preferences.paleo ? Colors.white : Colors.black87,
-                  ),
-                ),
+                _buildDietChip('Gluten Free', _preferences.glutenFree, (selected) {
+                  setState(() {
+                    _preferences = _preferences.copyWith(glutenFree: selected);
+                  });
+                }),
+                _buildDietChip('Keto', _preferences.keto, (selected) {
+                  setState(() {
+                    _preferences = _preferences.copyWith(keto: selected);
+                  });
+                }),
+                _buildDietChip('Paleo', _preferences.paleo, (selected) {
+                  setState(() {
+                    _preferences = _preferences.copyWith(paleo: selected);
+                  });
+                }),
+                _buildDietChip('Low Carb', _preferences.lowCarb, (selected) {
+                  setState(() {
+                    _preferences = _preferences.copyWith(lowCarb: selected);
+                  });
+                }),
+                _buildDietChip('Mediterranean', _preferences.mediterranean, (selected) {
+                  setState(() {
+                    _preferences = _preferences.copyWith(mediterranean: selected);
+                  });
+                }),
               ],
             ),
             const SizedBox(height: 20),
+
+            // Cuisine Types
             Text(
               'Cuisine Types',
               style: TextStyle(
@@ -215,26 +258,25 @@ class _PreferencesDialogState extends State<PreferencesDialog> {
               ),
             ),
             const SizedBox(height: 10),
-            _buildChips(
-              [
-                'Indian',
-                'Italian',
-                'Chinese',
-                'Japanese',
-                'Mexican',
-                'Thai',
-                'Mediterranean',
-                'French',
-                'Korean',
-                'Middle Eastern',
-                'Vietnamese',
-                'Greek',
-              ],
-              _preferences.culturalPreferences,
-              (cuisine) => setState(() => _preferences.culturalPreferences.add(cuisine)),
-              (cuisine) => setState(() => _preferences.culturalPreferences.remove(cuisine)),
+            Wrap(
+              spacing: 8,
+              children: _availableCuisines.map((cuisine) {
+                final isSelected = _preferences.culturalPreferences.contains(cuisine);
+                return FilterChip(
+                  label: Text(cuisine),
+                  selected: isSelected,
+                  onSelected: (_) => _toggleCuisine(cuisine),
+                  backgroundColor: isSelected ? Colors.blue : Colors.grey[200],
+                  selectedColor: Colors.blue,
+                  labelStyle: TextStyle(
+                    color: isSelected ? Colors.white : Colors.black87,
+                  ),
+                );
+              }).toList(),
             ),
             const SizedBox(height: 20),
+
+            // Allergies
             Text(
               'Allergies',
               style: TextStyle(
@@ -244,13 +286,48 @@ class _PreferencesDialogState extends State<PreferencesDialog> {
               ),
             ),
             const SizedBox(height: 10),
-            _buildChips(
-              ['Peanuts', 'Tree Nuts', 'Milk', 'Egg', 'Wheat', 'Soy', 'Fish', 'Shellfish'],
-              _preferences.allergies,
-              _addAllergy,
-              _removeAllergy,
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _allergyController,
+                    decoration: InputDecoration(
+                      labelText: 'Add Allergy',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      suffixIcon: IconButton(
+                        icon: Icon(Icons.add),
+                        onPressed: () {
+                          if (_allergyController.text.isNotEmpty) {
+                            _addAllergy(_allergyController.text);
+                            _allergyController.clear();
+                          }
+                        },
+                      ),
+                    ),
+                    onSubmitted: (value) {
+                      if (value.isNotEmpty) {
+                        _addAllergy(value);
+                        _allergyController.clear();
+                      }
+                    },
+                  ),
+                ),
+              ],
+            ),
+            Wrap(
+              spacing: 8,
+              children: _preferences.allergies.map((allergy) {
+                return Chip(
+                  label: Text(allergy),
+                  onDeleted: () => _removeAllergy(allergy),
+                );
+              }).toList(),
             ),
             const SizedBox(height: 20),
+
+            // Excluded Ingredients
             Text(
               'Exclude Ingredients',
               style: TextStyle(
@@ -260,13 +337,48 @@ class _PreferencesDialogState extends State<PreferencesDialog> {
               ),
             ),
             const SizedBox(height: 10),
-            _buildChips(
-              ['Mushrooms', 'Onions', 'Garlic', 'Bell Peppers', 'Cilantro', 'Olives', 'Eggplant', 'Tomatoes'],
-              _preferences.excludedIngredients,
-              _addExclusion,
-              _removeExclusion,
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _excludeController,
+                    decoration: InputDecoration(
+                      labelText: 'Add Ingredient to Exclude',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      suffixIcon: IconButton(
+                        icon: Icon(Icons.add),
+                        onPressed: () {
+                          if (_excludeController.text.isNotEmpty) {
+                            _addExclusion(_excludeController.text);
+                            _excludeController.clear();
+                          }
+                        },
+                      ),
+                    ),
+                    onSubmitted: (value) {
+                      if (value.isNotEmpty) {
+                        _addExclusion(value);
+                        _excludeController.clear();
+                      }
+                    },
+                  ),
+                ),
+              ],
+            ),
+            Wrap(
+              spacing: 8,
+              children: _preferences.excludedIngredients.map((item) {
+                return Chip(
+                  label: Text(item),
+                  onDeleted: () => _removeExclusion(item),
+                );
+              }).toList(),
             ),
             const SizedBox(height: 30),
+
+            // Action Buttons
             Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
@@ -282,11 +394,9 @@ class _PreferencesDialogState extends State<PreferencesDialog> {
                 ),
                 const SizedBox(width: 10),
                 ElevatedButton(
-                  onPressed: () async {
-                    await widget.onSave(_preferences);
-                    if (context.mounted) {
-                      Navigator.pop(context, true);
-                    }
+                  onPressed: () {
+                    widget.onSave(_preferences);
+                    Navigator.pop(context);
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.blue,
@@ -306,6 +416,19 @@ class _PreferencesDialogState extends State<PreferencesDialog> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildDietChip(String label, bool selected, Function(bool) onSelected) {
+    return FilterChip(
+      label: Text(label),
+      selected: selected,
+      onSelected: onSelected,
+      backgroundColor: selected ? Colors.blue : Colors.grey[200],
+      selectedColor: Colors.blue,
+      labelStyle: TextStyle(
+        color: selected ? Colors.white : Colors.black87,
       ),
     );
   }
