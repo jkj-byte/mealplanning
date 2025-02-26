@@ -1,6 +1,6 @@
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../models/meal.dart';
+import '../models/meal_model.dart';
 
 class LocalMealDatabase {
   static const String _fallbackMealsKey = 'fallback_meals';

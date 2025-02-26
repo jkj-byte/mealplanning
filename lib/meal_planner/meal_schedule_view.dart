@@ -1,11 +1,10 @@
-import 'package:calendar_agenda/calendar_agenda.dart';
 import 'package:flutter/material.dart';
+import 'package:calendar_agenda/calendar_agenda.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../common/colo_extension.dart';
 import '../common_widget/meal_food_schedule_row.dart';
 import '../common_widget/nutritions_row.dart';
-import 'models/meal.dart';
-import 'models/meal_plan.dart';
+import 'models/meal_model.dart';
 import 'models/nutrients.dart';
 import 'models/user_preferences.dart';
 import 'services/meal_service.dart';
@@ -29,7 +28,7 @@ class MealScheduleView extends StatefulWidget {
 }
 
 class _MealScheduleViewState extends State<MealScheduleView> {
-  CalendarAgendaController _calendarAgendaControllerAppBar =
+  final CalendarAgendaController _calendarAgendaControllerAppBar =
       CalendarAgendaController();
 
   DateTime _selectedDateAppBBar = DateTime.now();
@@ -273,7 +272,7 @@ class _MealScheduleViewState extends State<MealScheduleView> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
+          const SnackBar(
             content: Text('Failed to save meal selection'),
             backgroundColor: Colors.red,
           ),
@@ -283,9 +282,7 @@ class _MealScheduleViewState extends State<MealScheduleView> {
   }
 
   Future<void> _updateAndSaveMealPlan(Meal selectedMeal, String mealType) async {
-    if (_currentMealPlan == null) {
-      // If no meal plan exists, create a new one with default nutrients
-      _currentMealPlan = MealPlan(
+    _currentMealPlan ??= MealPlan(
         meals: [],
         nutrients: Nutrients(
           calories: 2000,
@@ -294,7 +291,6 @@ class _MealScheduleViewState extends State<MealScheduleView> {
           carbohydrates: 1000,
         ),
       );
-    }
 
     // Create a new list with existing meals
     final meals = List<Meal>.from(_currentMealPlan!.meals);
@@ -665,7 +661,7 @@ class _MealScheduleViewState extends State<MealScheduleView> {
           ),
           Expanded(
             child: _isLoading
-                ? Center(child: CircularProgressIndicator())
+                ? const Center(child: CircularProgressIndicator())
                 : SingleChildScrollView(
                     padding: const EdgeInsets.all(16),
                     child: Column(

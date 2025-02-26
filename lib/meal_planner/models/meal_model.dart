@@ -1,3 +1,5 @@
+import 'nutrients.dart';
+
 class MealPlan {
   final List<Meal> meals;
   final Nutrients nutrients;
@@ -16,10 +18,20 @@ class MealPlan {
 
   factory MealPlan.fromJson(Map<String, dynamic> json) {
     return MealPlan(
-      meals: (json['meals'] as List<dynamic>)
+      meals: (json['meals'] as List)
           .map((mealJson) => Meal.fromJson(mealJson as Map<String, dynamic>))
           .toList(),
       nutrients: Nutrients.fromJson(json['nutrients'] as Map<String, dynamic>),
+    );
+  }
+
+  MealPlan copyWith({
+    List<Meal>? meals,
+    Nutrients? nutrients,
+  }) {
+    return MealPlan(
+      meals: meals ?? this.meals,
+      nutrients: nutrients ?? this.nutrients,
     );
   }
 }
@@ -29,18 +41,20 @@ class Meal {
   final String title;
   final int readyInMinutes;
   final int servings;
-  final String image;
+  final String? image;
   final List<String> diets;
   final int healthScore;
+  final String? type;
 
   Meal({
     required this.id,
     required this.title,
     required this.readyInMinutes,
     required this.servings,
-    required this.image,
+    this.image,
     required this.diets,
     required this.healthScore,
+    this.type,
   });
 
   Map<String, dynamic> toJson() {
@@ -52,50 +66,42 @@ class Meal {
       'image': image,
       'diets': diets,
       'healthScore': healthScore,
+      'type': type,
     };
   }
 
   factory Meal.fromJson(Map<String, dynamic> json) {
     return Meal(
-      id: json['id'] as int,
+      id: (json['id'] as num).toInt(),
       title: json['title'] as String,
-      readyInMinutes: json['readyInMinutes'] as int,
-      servings: json['servings'] as int,
-      image: json['image'] as String,
-      diets: (json['diets'] as List<dynamic>).cast<String>(),
-      healthScore: json['healthScore'] as int,
+      readyInMinutes: (json['readyInMinutes'] as num).toInt(),
+      servings: (json['servings'] as num).toInt(),
+      image: json['image'] as String?,
+      diets: (json['diets'] as List<dynamic>).map((e) => e as String).toList(),
+      healthScore: (json['healthScore'] as num).toInt(),
+      type: json['type'] as String?,
     );
   }
-}
 
-class Nutrients {
-  final double calories;
-  final double protein;
-  final double fat;
-  final double carbohydrates;
-
-  Nutrients({
-    required this.calories,
-    required this.protein,
-    required this.fat,
-    required this.carbohydrates,
-  });
-
-  Map<String, dynamic> toJson() {
-    return {
-      'calories': calories,
-      'protein': protein,
-      'fat': fat,
-      'carbohydrates': carbohydrates,
-    };
-  }
-
-  factory Nutrients.fromJson(Map<String, dynamic> json) {
-    return Nutrients(
-      calories: (json['calories'] as num).toDouble(),
-      protein: (json['protein'] as num).toDouble(),
-      fat: (json['fat'] as num).toDouble(),
-      carbohydrates: (json['carbohydrates'] as num).toDouble(),
+  Meal copyWith({
+    int? id,
+    String? title,
+    int? readyInMinutes,
+    int? servings,
+    String? image,
+    List<String>? diets,
+    int? healthScore,
+    String? type,
+  }) {
+    return Meal(
+      id: id ?? this.id,
+      title: title ?? this.title,
+      readyInMinutes: readyInMinutes ?? this.readyInMinutes,
+      servings: servings ?? this.servings,
+      image: image ?? this.image,
+      diets: diets ?? this.diets,
+      healthScore: healthScore ?? this.healthScore,
+      type: type ?? this.type,
     );
   }
 }

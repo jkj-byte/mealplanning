@@ -6,10 +6,10 @@ class PreferencesDialog extends StatefulWidget {
   final Function(UserPreferences) onSave;
 
   const PreferencesDialog({
-    Key? key,
+    super.key,
     required this.preferences,
     required this.onSave,
-  }) : super(key: key);
+  });
 
   @override
   State<PreferencesDialog> createState() => _PreferencesDialogState();
@@ -116,7 +116,7 @@ class _PreferencesDialogState extends State<PreferencesDialog> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
+            const Text(
               'Dietary Preferences',
               style: TextStyle(
                 color: Colors.black,
@@ -173,7 +173,7 @@ class _PreferencesDialogState extends State<PreferencesDialog> {
             const SizedBox(height: 20),
 
             // Diet Types
-            Text(
+            const Text(
               'Diet Type',
               style: TextStyle(
                 color: Colors.black,
@@ -249,7 +249,7 @@ class _PreferencesDialogState extends State<PreferencesDialog> {
             const SizedBox(height: 20),
 
             // Cuisine Types
-            Text(
+            const Text(
               'Cuisine Types',
               style: TextStyle(
                 color: Colors.black,
@@ -277,7 +277,7 @@ class _PreferencesDialogState extends State<PreferencesDialog> {
             const SizedBox(height: 20),
 
             // Allergies
-            Text(
+            const Text(
               'Allergies',
               style: TextStyle(
                 color: Colors.black,
@@ -297,7 +297,7 @@ class _PreferencesDialogState extends State<PreferencesDialog> {
                         borderRadius: BorderRadius.circular(10),
                       ),
                       suffixIcon: IconButton(
-                        icon: Icon(Icons.add),
+                        icon: const Icon(Icons.add),
                         onPressed: () {
                           if (_allergyController.text.isNotEmpty) {
                             _addAllergy(_allergyController.text);
@@ -328,7 +328,7 @@ class _PreferencesDialogState extends State<PreferencesDialog> {
             const SizedBox(height: 20),
 
             // Excluded Ingredients
-            Text(
+            const Text(
               'Exclude Ingredients',
               style: TextStyle(
                 color: Colors.black,
@@ -348,7 +348,7 @@ class _PreferencesDialogState extends State<PreferencesDialog> {
                         borderRadius: BorderRadius.circular(10),
                       ),
                       suffixIcon: IconButton(
-                        icon: Icon(Icons.add),
+                        icon: const Icon(Icons.add),
                         onPressed: () {
                           if (_excludeController.text.isNotEmpty) {
                             _addExclusion(_excludeController.text);
@@ -384,7 +384,7 @@ class _PreferencesDialogState extends State<PreferencesDialog> {
               children: [
                 TextButton(
                   onPressed: () => Navigator.pop(context),
-                  child: Text(
+                  child: const Text(
                     'Cancel',
                     style: TextStyle(
                       color: Colors.grey,

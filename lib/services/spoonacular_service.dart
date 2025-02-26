@@ -16,7 +16,7 @@ class SpoonacularService {
 
   void _rotateApiKey() {
     _currentKeyIndex = (_currentKeyIndex + 1) % _apiKeys.length;
-    debugPrint('Switching to API key: ${_apiKey}');
+    debugPrint('Switching to API key: $_apiKey');
   }
 
   String _getImageUrl(int id, String? imageType) {
@@ -164,8 +164,6 @@ class SpoonacularService {
 
   Map<String, dynamic> _getMockMealPlan({
     int? targetCalories,
-    String? diet,
-    List<String>? exclude,
   }) {
     return {
       "meals": [
@@ -294,6 +292,45 @@ class SpoonacularService {
       debugPrint('❌ Error in searchRecipes: $e');
       debugPrint('Stack trace: $stackTrace');
       rethrow;
+    }
+  }
+
+  Future<Map<String, dynamic>> getRecipeDetails(int recipeId) async {
+    try {
+      final uri = Uri.https(
+        _baseUrl,
+        '/recipes/$recipeId/information',
+        {
+          'apiKey': _apiKey,
+          'includeNutrition': 'true',
+        },
+      );
+
+      debugPrint('🌐 Making recipe details request to: $uri');
+
+      final response = await http.get(
+        uri,
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+      );
+
+      debugPrint('📥 Recipe details response status: ${response.statusCode}');
+      
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body) as Map<String, dynamic>;
+        debugPrint('✅ Recipe details data received');
+        return data;
+      } else if (response.statusCode == 402) {
+        _rotateApiKey();
+        return getRecipeDetails(recipeId);
+      } else {
+        throw Exception('Failed to fetch recipe details');
+      }
+    } catch (e) {
+      debugPrint('❌ Error fetching recipe details: $e');
+      throw Exception('Failed to fetch recipe details: $e');
     }
   }
 }

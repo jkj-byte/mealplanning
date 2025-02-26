@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:foody/meal_planner/meal_schedule_view.dart';
 import '../common/colo_extension.dart';
-import 'models/meal.dart';
-import 'models/meal_plan.dart';
+import '../common_widget/today_meal_row.dart';
+import 'models/meal_model.dart';  
 import 'models/nutrients.dart';
 import 'models/user_preferences.dart';
 import 'widgets/preferences_dialog.dart';
@@ -11,7 +11,7 @@ import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class MealPlannerView extends StatefulWidget {
-  const MealPlannerView({Key? key}) : super(key: key);
+  const MealPlannerView({super.key});
 
   @override
   State<MealPlannerView> createState() => _MealPlannerViewState();
@@ -106,10 +106,10 @@ class _MealPlannerViewState extends State<MealPlannerView> {
   }
 
   Widget _buildNutritionCard() {
-    if (_mealPlan == null) return SizedBox.shrink();
+    if (_mealPlan == null) return const SizedBox.shrink();
 
     return Container(
-      padding: EdgeInsets.all(16),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: TColor.primaryColor2.withOpacity(0.1),
         borderRadius: BorderRadius.circular(16),
@@ -125,7 +125,7 @@ class _MealPlannerViewState extends State<MealPlannerView> {
               color: TColor.black,
             ),
           ),
-          SizedBox(height: 16),
+          const SizedBox(height: 16),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
@@ -151,7 +151,7 @@ class _MealPlannerViewState extends State<MealPlannerView> {
             color: TColor.primaryColor2,
           ),
         ),
-        SizedBox(height: 4),
+        const SizedBox(height: 4),
         Text(
           label,
           style: TextStyle(
@@ -163,94 +163,52 @@ class _MealPlannerViewState extends State<MealPlannerView> {
     );
   }
 
-  Widget _buildMealCard(Meal meal) {
-    final isFavorite = _favoriteMeals.contains(meal.id);
-
-    return Container(
-      margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 2),
-      child: Row(
-        children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(10),
-            child: Container(
-              height: 55,
-              width: 55,
-              decoration: BoxDecoration(
-                color: TColor.primaryColor2.withOpacity(0.4),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              alignment: Alignment.center,
-              child: Image.network(
-                meal.image ?? "",
-                width: 40,
-                height: 40,
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) => Icon(
-                  Icons.restaurant,
-                  color: TColor.gray,
-                  size: 30,
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(width: 15),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  meal.title,
-                  style: TextStyle(
-                    color: TColor.black,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                Text(
-                  "${meal.readyInMinutes} mins • ${meal.servings} servings",
-                  style: TextStyle(
-                    color: TColor.gray,
-                    fontSize: 10,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          IconButton(
-            onPressed: () => _toggleFavorite(meal.id),
-            icon: Icon(
-              isFavorite ? Icons.favorite : Icons.favorite_border,
-              color: isFavorite ? TColor.primaryColor2 : TColor.gray,
-              size: 20,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildMealsList() {
-    if (_mealPlan == null) return SizedBox.shrink();
+    if (_mealPlan == null || _mealPlan!.meals.isEmpty) {
+      return const Center(
+        child: Text('No meals available for today'),
+      );
+    }
 
     final mealTypes = ['breakfast', 'lunch', 'dinner'];
-    final sortedMeals = mealTypes
-        .map((type) => _mealPlan!.meals.firstWhere(
-              (meal) => meal.type?.toLowerCase() == type,
-              orElse: () => Meal(
-                id: 0,
-                title: 'No $type meal available',
-                readyInMinutes: 0,
-                servings: 0,
-                type: type,
-                diets: [],
-                healthScore: 0,
-                image: null,
-              ),
-            ))
-        .toList();
+    final sortedMeals = <Meal>[];
+    
+    for (var type in mealTypes) {
+      try {
+        final meal = _mealPlan!.meals.firstWhere(
+          (meal) => meal.type?.toLowerCase() == type,
+          orElse: () => Meal(
+            id: 0,
+            title: 'No $type planned',
+            readyInMinutes: 0,
+            servings: 0,
+            type: type,
+            diets: [],
+            healthScore: 0,
+            image: null,
+          ),
+        );
+        sortedMeals.add(meal);
+      } catch (e) {
+        print('Error processing meal type $type: $e');
+        sortedMeals.add(Meal(
+          id: 0,
+          title: 'No $type planned',
+          readyInMinutes: 0,
+          servings: 0,
+          type: type,
+          diets: [],
+          healthScore: 0,
+          image: null,
+        ));
+      }
+    }
 
-    return Column(
-      children: sortedMeals.map((meal) => _buildMealCard(meal)).toList(),
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 15),
+      child: Column(
+        children: sortedMeals.map((meal) => TodayMealRow(meal: meal)).toList(),
+      ),
     );
   }
 
@@ -291,39 +249,39 @@ class _MealPlannerViewState extends State<MealPlannerView> {
       ),
       backgroundColor: TColor.white,
       body: _isLoading
-          ? Center(child: CircularProgressIndicator())
+          ? const Center(child: CircularProgressIndicator())
           : _error != null
               ? Center(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Text(
+                      const Text(
                         'Error loading meal plan',
                         style: TextStyle(fontSize: 18, color: Colors.red),
                       ),
-                      SizedBox(height: 8),
+                      const SizedBox(height: 8),
                       Text(
                         _error!,
-                        style: TextStyle(fontSize: 14, color: Colors.grey),
+                        style: const TextStyle(fontSize: 14, color: Colors.grey),
                       ),
-                      SizedBox(height: 16),
+                      const SizedBox(height: 16),
                       ElevatedButton(
                         onPressed: _loadMealPlan,
-                        child: Text('Retry'),
+                        child: const Text('Retry'),
                       ),
                     ],
                   ),
                 )
               : _mealPlan == null
-                  ? Center(child: Text('No meal plan available'))
+                  ? const Center(child: Text('No meal plan available'))
                   : RefreshIndicator(
                       onRefresh: _loadMealPlan,
                       child: ListView(
-                        padding: EdgeInsets.all(16),
+                        padding: const EdgeInsets.all(16),
                         children: [
                           _buildNutritionCard(),
-                          SizedBox(height: 20),
-                          Container(
+                          const SizedBox(height: 20),
+                          SizedBox(
                             width: double.infinity,
                             child: ElevatedButton.icon(
                               onPressed: () {
@@ -334,30 +292,30 @@ class _MealPlannerViewState extends State<MealPlannerView> {
                                   ),
                                 );
                               },
-                              icon: Icon(Icons.calendar_today, size: 28),
-                              label: Text(
+                              icon: const Icon(Icons.calendar_today, size: 28),
+                              label: const Text(
                                 'Daily Schedule',
                                 style: TextStyle(fontSize: 20),
                               ),
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: TColor.primaryColor2,
                                 foregroundColor: Colors.white,
-                                padding: EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(15),
                                 ),
                               ),
                             ),
                           ),
-                          SizedBox(height: 24),
-                          Text(
+                          const SizedBox(height: 24),
+                          const Text(
                             'Today\'s Meals',
                             style: TextStyle(
                               fontSize: 18,
                               fontWeight: FontWeight.bold,
                             ),
                           ),
-                          SizedBox(height: 16),
+                          const SizedBox(height: 16),
                           _buildMealsList(),
                         ],
                       ),

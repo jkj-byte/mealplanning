@@ -1,8 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../models/meal.dart';
-import '../models/meal_plan.dart';
+import '../models/meal_model.dart';
 import '../models/nutrients.dart';
 import '../models/user_preferences.dart';
 import '../../services/spoonacular_service.dart';
@@ -251,7 +250,7 @@ class MealService {
       return MealPlan(
         meals: meals,
         nutrients: Nutrients(
-          calories: userPrefs.targetCalories?.toDouble() ?? 2000.0,
+          calories: userPrefs.targetCalories.toDouble() ?? 2000.0,
           protein: 0,
           fat: 0,
           carbohydrates: 0
@@ -263,7 +262,7 @@ class MealService {
       return MealPlan(
         meals: [],
         nutrients: Nutrients(
-          calories: userPrefs.targetCalories?.toDouble() ?? 2000.0,
+          calories: userPrefs.targetCalories.toDouble() ?? 2000.0,
           protein: 0,
           fat: 0,
           carbohydrates: 0
@@ -299,7 +298,7 @@ class MealService {
       return MealPlan(
         meals: allMeals,
         nutrients: Nutrients(
-          calories: preferences.targetCalories?.toDouble() ?? 2000.0,
+          calories: preferences.targetCalories.toDouble() ?? 2000.0,
           protein: 0,
           fat: 0,
           carbohydrates: 0
@@ -316,7 +315,7 @@ class MealService {
     return MealPlan(
       meals: [],
       nutrients: Nutrients(
-        calories: preferences.targetCalories?.toDouble() ?? 2000.0,
+        calories: preferences.targetCalories.toDouble() ?? 2000.0,
         protein: 0,
         fat: 0,
         carbohydrates: 0

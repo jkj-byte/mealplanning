@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
 import '../common/colo_extension.dart';
-import '../meal_planner/models/meal.dart';
+import '../meal_planner/models/meal_model.dart';
 
 class MealFoodScheduleRow extends StatelessWidget {
   final Meal meal;
 
   const MealFoodScheduleRow({
-    Key? key,
+    super.key,
     required this.meal,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

@@ -1,65 +1,96 @@
 import 'package:foody/common/colo_extension.dart';
 import 'package:flutter/material.dart';
 
-import '../common/common.dart';
+import '../meal_planner/models/meal_model.dart';
+import '../meal_planner/meal_food_details_view.dart';
 
 class TodayMealRow extends StatelessWidget {
-  final Map mObj;
-  const TodayMealRow({super.key, required this.mObj});
+  final Meal meal;
+  const TodayMealRow({super.key, required this.meal});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-        margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 2),
+    return GestureDetector(
+      onTap: () {
+        if (meal.id != 0) {  // Only navigate if it's a real meal
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => MealFoodDetailsView(meal: meal),
+            ),
+          );
+        }
+      },
+      child: Container(
+        margin: const EdgeInsets.symmetric(vertical: 8),
         padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
-            color: TColor.white,
-            borderRadius: BorderRadius.circular(15),
-            boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 2)]),
+          color: TColor.white,
+          borderRadius: BorderRadius.circular(15),
+          boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 2)],
+        ),
         child: Row(
           children: [
             ClipRRect(
               borderRadius: BorderRadius.circular(30),
-              child: Image.asset(
-                mObj["image"].toString(),
-                width: 40,
-                height: 40,
-                fit: BoxFit.cover,
-              ),
+              child: meal.image != null && meal.image!.isNotEmpty
+                  ? Image.network(
+                      meal.image!,
+                      width: 40,
+                      height: 40,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) => _buildPlaceholderIcon(),
+                    )
+                  : _buildPlaceholderIcon(),
             ),
-            const SizedBox(
-              width: 15,
-            ),
+            const SizedBox(width: 15),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    mObj["name"].toString(),
+                    meal.title,
                     style: TextStyle(
-                        color: TColor.black,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500),
-                  ),
-                  Text(
-                     "${getDayTitle(mObj["time"].toString())} | ${getStringDateToOtherFormate(mObj["time"].toString(), outFormatStr: "h:mm aa")}",
-                    style: TextStyle(
-                      color: TColor.gray,
-                      fontSize: 10,
+                      color: TColor.black,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
                     ),
                   ),
+                  if (meal.id != 0)  // Only show details for real meals
+                    Text(
+                      "${meal.readyInMinutes} mins • ${meal.servings} servings",
+                      style: TextStyle(
+                        color: TColor.gray,
+                        fontSize: 10,
+                      ),
+                    ),
                 ],
               ),
             ),
-            IconButton(
-              onPressed: () {},
-              icon: Image.asset(
-                "assets/img/bell.png",
-                width: 25,
-                height: 25,
-              ),
-            )
+            if (meal.id != 0)  // Only show notification icon for real meals
+              IconButton(
+                onPressed: () {},
+                icon: Image.asset(
+                  "assets/img/bell.png",
+                  width: 25,
+                  height: 25,
+                ),
+              )
           ],
-        ));
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPlaceholderIcon() {
+    return Container(
+      width: 40,
+      height: 40,
+      decoration: BoxDecoration(
+        color: TColor.lightGray,
+        borderRadius: BorderRadius.circular(30),
+      ),
+      child: Icon(Icons.restaurant, color: TColor.gray, size: 20),
+    );
   }
 }

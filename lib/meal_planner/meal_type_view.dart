@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../common/colo_extension.dart';
-import 'models/meal.dart';
-import 'models/meal_plan.dart';
+import 'models/meal_model.dart';  // This has both Meal and MealPlan
 import 'models/user_preferences.dart';
 import 'services/meal_service.dart';
 
@@ -10,10 +9,10 @@ class MealTypeView extends StatefulWidget {
   final Function(Meal) onMealSelected;
 
   const MealTypeView({
-    Key? key,
+    super.key,
     required this.mealType,
     required this.onMealSelected,
-  }) : super(key: key);
+  });
 
   @override
   State<MealTypeView> createState() => _MealTypeViewState();
